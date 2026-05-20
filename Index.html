@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mosselkraker View</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --border: #e5e7eb;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h2 { text-align: center; margin-bottom: 20px; color: #0f172a; }
+        .card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+        input, select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; flex: 1; font-size: 14px; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        @media(max-width: 480px) { .controls { grid-template-columns: 1fr; } }
+        .collapsible-header {
+            background: #e2e8f0;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .collapsible-content { display: block; margin-top: 10px; }
+        .collapsible-content.hidden { display: none; }
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            background: white;
+        }
+        .list-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📋 Mosselkraker View</h2>
+
+    <!-- File Upload (Overwrites existing local data when a new file is dropped in) -->
+    <div class="card">
+        <div style="margin-bottom: 5px;">
+            <label style="font-weight:500; font-size:14px;">Upload Master Sheet (Excel CSV / Text):</label>
+            <input type="file" id="excel-file" accept=".csv, .txt" onchange="uploadCSV()" style="margin-top:5px; width:100%;">
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <input type="text" id="search-box" placeholder="🔍 Search by name..." oninput="renderList()">
+        <select id="sort-option" onchange="renderList()">
+            <option value="name-az">Sort: Name (A-Z)</option>
+            <option value="pin-asc">Sort: PIN (Ascending)</option>
+        </select>
+    </div>
+
+    <!-- Output List -->
+    <div class="card" style="padding:0; overflow:hidden;">
+        <div class="collapsible-header" onclick="toggleList()">
+            <span>Lookup Records (<span id="record-count">0</span>)</span>
+            <span id="collapse-arrow">▼</span>
+        </div>
+        <div id="list-container" class="collapsible-content"></div>
+    </div>
+</div>
+
+<script>
+    // Loads separate database pointer name specifically for the viewer variant
+    let records = JSON.parse(localStorage.getItem('lookupRecordsViewOnly')) || [];
+    let isCollapsed = false;
+
+    function uploadCSV() {
+        const fileInput = document.getElementById('excel-file');
+        const files = fileInput.files;
+        if (!files || files.length === 0) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const text = e.target.result;
+                let delimiter = ",";
+                const lines = text.split(/[\r\n]+/);
+                if (lines.length > 0 && lines.includes(";")) {
+                    delimiter = ";";
+                }
+                
+                // Clear active arrays completely to prevent data stacking on clean load
+                let newRecords = [];
+
+                lines.forEach((rowText) => {
+                    if (!rowText.trim()) return;
+
+                    let cells = rowText.split(delimiter).map(cell => 
+                        cell.replace(/^["']|["']$/g, '').trim()
+                    );
+
+                    if (cells.length >= 2) {
+                        const cellName = cells[0];
+                        const cellPinRaw = cells[1];
+
+                        if (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ") return;
+
+                        if (cellName !== "") {
+                            const targetPin = parseInt(cellPinRaw);
+                            newRecords.push({
+                                name: cellName,
+                                pin: isNaN(targetPin) ? 0 : targetPin
+                            });
+                        }
+                    }
+                });
+
+                records = newRecords;
+                saveToStorage();
+                renderList();
+                alert(`Successfully loaded ${records.length} records into viewer!`);
+            } catch (err) {
+                alert("Error parsing file structure: " + err.message);
+            }
+            fileInput.value = ""; 
+        };
+        reader.readAsText(files[0]);
+    }
+
+    function saveToStorage() { localStorage.setItem('lookupRecordsViewOnly', JSON.stringify(records)); }
+
+    function toggleList() {
+        const container = document.getElementById('list-container');
+        const arrow = document.getElementById('collapse-arrow');
+        isCollapsed = !isCollapsed;
+        if(isCollapsed) { container.classList.add('hidden'); arrow.innerText = "▲"; }
+        else { container.classList.remove('hidden'); arrow.innerText = "▼"; }
+    }
+
+    function renderList() {
+        const searchVal = document.getElementById('search-box').value.toLowerCase();
+        const sortVal = document.getElementById('sort-option').value;
+        const listContainer = document.getElementById('list-container');
+        document.getElementById('record-count').innerText = records.length;
+
+        listContainer.innerHTML = "";
+        let processedList = records.map((item, index) => ({ ...item, originalIndex: index }));
+
+        if (searchVal) {
+            processedList = processedList.filter(item => item.name.toLowerCase().includes(searchVal));
+        }
+        if (sortVal === 'name-az') {
+            processedList.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortVal === 'pin-asc') {
+            processedList.sort((a, b) => a.pin - b.pin);
+        }
+
+        if(processedList.length === 0) {
+            listContainer.innerHTML = `<div style="padding:15px; text-align:center; color:#64748b;">No records found</div>`;
+            return;
+        }
+
+        processedList.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.innerHTML = `
+                <div>
+                    <strong>${item.name}</strong> <span style="color:#64748b; margin-left:8px;">(PIN: ${item.pin})</span>
+                </div>
+            `;
+            listContainer.appendChild(div);
+        });
+    }
+    renderList();
+</script>
+</body>
+</html>
