@@ -116,12 +116,9 @@
 </div>
 
 <script>
-    // Pointing directly to the mosselkraker-view repository
-    const GITHUB_USERNAME = "hugowinterbach-debug";
-    const REPOSITORY_NAME = "mosselkraker-view";
-    const FILE_NAME = "mosselkraker_master_list.csv";
+    // Standalone Direct Link Configuration
+    const CLOUD_CSV_URL = "https://githubusercontent.com";
 
-    const CLOUD_CSV_URL = `https://githubusercontent.com{GITHUB_USERNAME}/${REPOSITORY_NAME}/main/${FILE_NAME}`;
 
 
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
