@@ -62,49 +62,58 @@
         }
         .list-item:last-child { border-bottom: none; }
         
-        #login-screen { display: block; max-width: 400px; margin: 50px auto; }
+        #login-box-wrapper { display: block; }
+        #setup-zone { display: block; text-align: center; }
         #app-screen { display: none; }
+        #admin-tools-card { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
 
-    <!-- 1. SECURE GATEKEEPER LOCKSCREEN -->
+    <!-- 1. SECURE GATEKEEPER GATES -->
     <div id="login-screen" class="card">
         <h3 style="text-align:center; margin-top:0;">🔐 Access Verification</h3>
-        <p style="font-size:13px; color:#64748b; text-align:center;">Please enter your assigned PIN number below to unlock the Mosselkraker dataset view tool.</p>
         
-        <div style="display:flex; flex-direction:column; gap:10px;">
-            <input type="password" id="login-pin" placeholder="Enter PIN Number" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUserPIN()">
-            <button class="btn btn-primary" onclick="verifyUserPIN()">Unlock Application</button>
+        <!-- Standard PIN Entry Mode -->
+        <div id="login-box-wrapper">
+            <p style="font-size:13px; color:#64748b; text-align:center;">Please enter your personal assigned PIN number below to unlock the lookup data tool.</p>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px;">
+                <input type="password" id="login-pin" placeholder="Enter PIN Number" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUserPIN()">
+                <button class="btn btn-primary" onclick="verifyUserPIN()">Unlock Application</button>
+            </div>
         </div>
 
-        <!-- Authorized Bootstrap Mechanism for Device Provisioning -->
-        <div id="setup-zone" style="margin-top:20px; border-top:1px dashed var(--border); padding-top:15px; text-align:center;">
-            <p style="font-size:12px; color:#94a3b8; margin-bottom:5px;">First-time device provisioning or database update?</p>
-            <button class="btn" style="background:#e2e8f0; font-size:12px;" onclick="bootstrapDeviceWithFile()">⚙️ Admin Database Initialization</button>
+        <!-- Master Password Bootstrap Setup Mode -->
+        <div id="setup-zone">
+            <p id="setup-instructions" style="font-size:12px; color:#94a3b8; margin-bottom:5px;">First-time device provisioning or database update?</p>
+            <button class="btn" style="background:#e2e8f0; font-size:12px; width:100%;" onclick="bootstrapDeviceWithPassword()">⚙️ Admin Database Initialization</button>
         </div>
     </div>
 
-    <!-- 2. FULL VIEW-ONLY RUNTIME ENVIRONMENT -->
+    <!-- 2. APPLICATION RUNTIME SYSTEM -->
     <div id="app-screen">
         <h2>📋 Mosselkraker View</h2>
         <div style="text-align:right; margin-bottom:10px;">
-            <span style="font-size:12px; background:#e2e8f0; padding:4px 8px; border-radius:12px;" id="current-user-badge">User: Admin</span>
+            <span style="font-size:12px; background:#e2e8f0; padding:4px 8px; border-radius:12px;" id="current-user-badge">User: Guest</span>
             <button class="btn" style="background:#cbd5e1; padding:2px 8px; font-size:11px; margin-left:5px;" onclick="lockAppOut()">Logout</button>
         </div>
 
-        <!-- Dataset Control Hub (Can only be accessed *after* logging in) -->
-        <div class="card">
-            <div style="margin-bottom: 10px;">
-                <label style="font-weight:500; font-size:14px;">Update Core Master Sheet (Excel CSV / Text):</label>
+        <!-- Privileged Admin Toolset Panel (Only visible if ADMIN = Y logs in) -->
+        <div class="card" id="admin-tools-card">
+            <h4 style="margin-top:0; margin-bottom:10px; color:var(--primary);">🛡️ Administrator Management Tools</h4>
+            <div style="margin-bottom: 15px; border-bottom:1px dashed var(--border); padding-bottom:15px;">
+                <label style="font-weight:500; font-size:13px;">Refresh Core Master Sheet (Excel CSV):</label>
                 <input type="file" id="excel-file" accept=".csv, .txt" onchange="uploadCSV()" style="margin-top:5px; width:100%;">
             </div>
-            <button class="btn btn-danger" onclick="clearAll()" style="width: 100%;">🗑️ Clear All Registry Entries</button>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <button class="btn" style="background:#cbd5e1;" onclick="changeMasterSetupPassword()">🔑 Change Setup Password</button>
+                <button class="btn btn-danger" onclick="clearAll()">🗑️ Wipe Device Records</button>
+            </div>
         </div>
 
-        <!-- Search / Sort Tools -->
+        <!-- Search / Sort Filters -->
         <div class="controls">
             <input type="text" id="search-box" placeholder="🔍 Search by name..." oninput="renderList()">
             <select id="sort-option" onchange="renderList()">
@@ -113,7 +122,7 @@
             </select>
         </div>
 
-        <!-- Collapsible List Result Mapping Grid -->
+        <!-- Collapsible List Wrapper -->
         <div class="card" style="padding:0; overflow:hidden;">
             <div class="collapsible-header" onclick="toggleList()">
                 <span>Lookup Records (<span id="record-count">0</span>)</span>
@@ -125,10 +134,30 @@
 </div>
 
 <script>
+    // Local device internal registries
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
 
-    // Strict Dynamic Runtime Gatekeeper Validation
+    // Default initialization setup password if none has been saved yet
+    const DEFAULT_MASTER_PASSWORD = "Mossel2026";
+
+    // Evaluates visual layout parameters dynamically based on current data state
+    function evaluateInterfaceState() {
+        const pinWrapper = document.getElementById('login-box-wrapper');
+        const setupInstructions = document.getElementById('setup-instructions');
+        
+        if (records.length === 0) {
+            // Hide standard PIN entry if empty database catch-22 occurs
+            pinWrapper.style.display = "none";
+            setupInstructions.innerText = "🚨 Device registry is empty. Device initialization required before standard use.";
+        } else {
+            pinWrapper.style.display = "block";
+            setupInstructions.innerText = "First-time device provisioning or database update?";
+        }
+        document.getElementById('record-count').innerText = records.length;
+    }
+
+    // Standard PIN login gatekeeper verification
     function verifyUserPIN() {
         const pinInput = parseInt(document.getElementById('login-pin').value);
         if (isNaN(pinInput)) {
@@ -136,34 +165,42 @@
             return;
         }
 
-        if (records.length === 0) {
-            alert("This device is completely blank. An authorized administrator must click the 'Admin Database Initialization' tool below to load the file first.");
-            return;
-        }
-
         const foundUser = records.find(item => parseInt(item.pin) === pinInput);
-
         if (!foundUser) {
             alert("Access Denied: Invalid PIN code.");
             return;
         }
 
-        // Grant access immediately
+        // Grant system access
         document.getElementById('current-user-badge').innerText = `User: ${foundUser.name}`;
         document.getElementById('login-screen').style.display = "none";
         document.getElementById('app-screen').style.display = "block";
         document.getElementById('login-pin').value = ""; 
+
+        // Evaluate Privilege Flag permissions
+        const adminToolsCard = document.getElementById('admin-tools-card');
+        if (String(foundUser.admin).trim().toUpperCase() === 'Y') {
+            adminToolsCard.style.display = "block"; // Show admin tools card
+        } else {
+            adminToolsCard.style.display = "none";  // Hide admin tools card
+        }
+
         renderList();
     }
 
-    // Provisioning Engine (Protects device initialization via strict Admin verification step)
-    function bootstrapDeviceWithFile() {
-        // Step 1: Prompt the loader for an Admin code upfront to prove credentials
-        const verifyAdminPIN = parseInt(prompt("Security Challenge:\nPlease enter an authorized Administrator PIN code to upload files to this device:"));
+    // Provisioning initialization module using the device password gate
+    function bootstrapDeviceWithPassword() {
+        const currentSavedPassword = localStorage.getItem('mosselkrakerMasterPwd') || DEFAULT_MASTER_PASSWORD;
+        const inputPassword = prompt("Device Provisioning Security Gateway:\nPlease enter the Master Setup Password to upload database files:");
         
-        if (isNaN(verifyAdminPIN)) return;
+        if (inputPassword === null) return; // User cancelled prompt
 
-        // Step 2: Trigger standard file upload prompt dialog stream safely
+        if (inputPassword !== currentSavedPassword) {
+            alert("Access Denied: Incorrect Master Setup Password.");
+            return;
+        }
+
+        // Trigger safe programmatic file injection interface selector
         const fileSelector = document.createElement('input');
         fileSelector.type = 'file';
         fileSelector.accept = '.csv, .txt';
@@ -175,42 +212,45 @@
             const reader = new FileReader();
             reader.onload = function(evt) {
                 const parseSuccess = processRawCSVText(evt.target.result);
-                
-                if (!parseSuccess || records.length === 0) {
-                    alert("Initialization aborted: Could not parse text columns cleanly. Ensure your file format matches.");
+                if (parseSuccess && records.length > 0) {
+                    alert(`Initialization Complete! ${records.length} records loaded securely. System reverting to login gateway mode.`);
+                    lockAppOut();
+                } else {
+                    alert("Parsing Error: Could not process records. Verify column positions and parameters.");
                     records = [];
                     localStorage.removeItem('mosselkrakerSecureViewDB');
-                    return;
+                    evaluateInterfaceState();
                 }
-
-                // Verify if the typed PIN actually has Admin = 'Y' parameters mapped in the uploaded grid
-                const targetAdminUser = records.find(item => parseInt(item.pin) === verifyAdminPIN);
-                if (!targetAdminUser || String(targetAdminUser.admin).trim().toUpperCase() !== 'Y') {
-                    alert("Security Violation: The PIN code entered does not possess Administrator clearance flags within this file. Registry database deleted.");
-                    records = [];
-                    localStorage.removeItem('mosselkrakerSecureViewDB');
-                    return;
-                }
-
-                alert(`Device provisioning complete! Successfully mapped ${records.length} records into secure memory. You may now unlock the app using your PIN.`);
             };
             reader.readAsText(file);
         };
         fileSelector.click();
     }
 
-    function clearAll() {
-        if (confirm("Wipe all active entries? This will completely reset this machine profile view and log you out.")) {
-            records = [];
-            saveToStorage();
-            lockAppOut();
+    function changeMasterSetupPassword() {
+        const currentSavedPassword = localStorage.getItem('mosselkrakerMasterPwd') || DEFAULT_MASTER_PASSWORD;
+        const oldVerify = prompt("Verify Identity:\nEnter the CURRENT Master Setup Password:");
+        
+        if (oldVerify === null) return;
+        if (oldVerify !== currentSavedPassword) {
+            alert("Verification Failed: Incorrect current password.");
+            return;
         }
+
+        const newPassword = prompt("Enter the NEW Master Setup Password:");
+        if (!newPassword || !newPassword.trim()) {
+            alert("Operation Aborted: Password cannot be blank.");
+            return;
+        }
+
+        localStorage.setItem('mosselkrakerMasterPwd', newPassword.trim());
+        alert("Success: Master Setup Password has been changed safely inside this device profile!");
     }
 
     function uploadCSV() {
         const fileInput = document.getElementById('excel-file');
-        const files = fileInput.files;
-        if (!files || files.length === 0) return;
+        const file = fileInput.files[0];
+        if (!file) return;
 
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -219,17 +259,15 @@
                 alert(`Database updated cleanly! ${records.length} total entries active.`);
                 renderList();
             } else {
-                alert("Update failed: Unrecognized data format column maps.");
+                alert("Update failed: Unrecognized data structures mapping alignment.");
             }
         };
-        reader.readAsText(files[0]);
+        reader.readAsText(file);
         fileInput.value = ""; 
     }
 
-    // High-Stability Positional parsing framework supporting comma, semi-colon, and tab-spaces
     function processRawCSVText(text) {
         if (!text || !text.trim()) return false;
-        
         const lines = text.split(/[\r\n]+/);
         let parsedRecords = [];
 
@@ -270,9 +308,18 @@
         return false;
     }
 
+    function clearAll() {
+        if (confirm("Wipe all data from this device? This will reset the device back to the password bootstrap state and log you out.")) {
+            records = [];
+            saveToStorage();
+            lockAppOut();
+        }
+    }
+
     function lockAppOut() {
         document.getElementById('app-screen').style.display = "none";
         document.getElementById('login-screen').style.display = "block";
+        evaluateInterfaceState();
     }
 
     function saveToStorage() { localStorage.setItem('mosselkrakerSecureViewDB', JSON.stringify(records)); }
@@ -321,8 +368,8 @@
         });
     }
 
-    document.getElementById('record-count').innerText = records.length;
+    // Run layout parameters logic cycle immediately on page load script frame
+    evaluateInterfaceState();
 </script>
 </body>
 </html>
-
