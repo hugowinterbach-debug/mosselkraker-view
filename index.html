@@ -116,14 +116,12 @@
 </div>
 
 <script>
-    // Split URL configuration to bypass GitHub text-saving limits
+    // Split URL string configuration to bypass GitHub text-saving limits
     const CLOUD_BASE = "https://githubusercontent.com";
     const CLOUD_CSV_URL = CLOUD_BASE + "hugowinterbach-debug/mosselkraker-view/main/mosselkraker_master_list.csv";
 
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
-
     let isCollapsed = false;
-
 
     async function fetchCloudDatabase() {
         const statusDiv = document.getElementById('cloud-status');
@@ -185,22 +183,20 @@
         renderList();
     }
 
+    // High-Stability Positional Parser (Ignores literal headers, reads Column 1, 2, 3)
     function processRawCSVText(text) {
         if (!text || !text.trim()) return false;
         
-        let delimiter = ",";
         const lines = text.split(/[\r\n]+/);
-        
-        if (lines.length > 0) {
-            const firstLine = lines[0];
-            if (firstLine.includes("\t")) delimiter = "\t";
-            else if (firstLine.includes(";")) delimiter = ";";
-        }
-
         let parsedRecords = [];
 
-        lines.forEach((rowText) => {
+        lines.forEach((rowText, index) => {
             if (!rowText.trim()) return;
+
+            // Split by tabs (\t), semicolons (;), or commas (,) dynamically
+            let delimiter = ",";
+            if (rowText.includes("\t")) delimiter = "\t";
+            else if (rowText.includes(";")) delimiter = ";";
 
             let cells = rowText.split(delimiter).map(cell => 
                 cell.replace(/^["']|["']$/g, '').trim()
@@ -211,7 +207,8 @@
                 const cellPinRaw = cells[1];
                 const cellAdmin = cells[2] ? cells[2].trim().toUpperCase() : "N";
 
-                if (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ") return;
+                // Pure positional check: Skip row 1 if it explicitly looks like text labels
+                if (index === 0 && (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ")) return;
 
                 if (cellName !== "") {
                     const targetPin = parseInt(cellPinRaw);
@@ -288,4 +285,3 @@
 </script>
 </body>
 </html>
-
