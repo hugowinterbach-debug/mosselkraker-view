@@ -119,10 +119,9 @@
     // Standalone Direct Link Configuration
     const CLOUD_CSV_URL = "https://githubusercontent.com";
 
-
-
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
+
 
     async function fetchCloudDatabase() {
         const statusDiv = document.getElementById('cloud-status');
