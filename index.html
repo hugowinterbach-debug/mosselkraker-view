@@ -121,7 +121,7 @@
     const REPOSITORY_NAME = "mosselkraker-view";
     const FILE_NAME = "mosselkraker_master_list.csv";
 
-    const CLOUD_CSV_URL = `https://githubusercontent.com{GITHUB_USERNAME}/${REPOSITORY_NAME}/main/${FILE_NAME}`;
+    const CLOUD_CSV_URL = `https://raw.githubusercontent.com{GITHUB_USERNAME}/${REPOSITORY_NAME}/main/${FILE_NAME}`;
 
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
