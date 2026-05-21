@@ -36,8 +36,6 @@
             font-size: 14px;
         }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-success { background: var(--success); color: white; }
         input, select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; flex: 1; font-size: 14px; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         @media(max-width: 480px) { .controls { grid-template-columns: 1fr; } }
@@ -65,9 +63,7 @@
         
         #login-screen { display: block; max-width: 400px; margin: 50px auto; }
         #app-screen { display: none; }
-        .status-msg { text-align: center; font-size: 12px; margin-top: 10px; font-weight: bold; }
-        .status-success { color: var(--success); }
-        .status-loading { color: var(--primary); }
+        .status-msg { text-align: center; font-size: 12px; margin-top: 10px; font-weight: bold; color: var(--success); }
     </style>
 </head>
 <body>
@@ -77,14 +73,13 @@
     <!-- 1. SECURE LOCKSCREEN GATEWAY -->
     <div id="login-screen" class="card">
         <h3 style="text-align:center; margin-top:0;">🔐 Access Verification</h3>
-        <p style="font-size:13px; color:#64748b; text-align:center;">Enter your assigned PIN. The app updates and verifies your identity via the live cloud database automatically.</p>
+        <p style="font-size:13px; color:#64748b; text-align:center;">Enter your assigned PIN to open the database registry records.</p>
         
         <div style="display:flex; flex-direction:column; gap:10px;">
             <input type="password" id="login-pin" placeholder="Enter PIN Number" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUserPIN()">
             <button class="btn btn-primary" onclick="verifyUserPIN()">Unlock Application</button>
         </div>
-
-        <div id="cloud-status" class="status-msg status-loading">🔄 Fetching master database from GitHub...</div>
+        <div class="status-msg">📦 Standalone Offline Registry Engine Active</div>
     </div>
 
     <!-- 2. FULL APPLICATION ACCESS VIEW -->
@@ -116,51 +111,23 @@
 </div>
 
 <script>
-    // Split URL string configuration to bypass GitHub text-saving limits
-    const CLOUD_BASE = "https://githubusercontent.com";
-    const CLOUD_CSV_URL = CLOUD_BASE + "hugowinterbach-debug/mosselkraker-view/main/mosselkraker_master_list.csv";
-
-    let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
 
-    async function fetchCloudDatabase() {
-        const statusDiv = document.getElementById('cloud-status');
-        try {
-            const response = await fetch(CLOUD_CSV_URL + '?nocache=' + new Date().getTime());
-            if (!response.ok) throw new Error("Could not find file on GitHub path.");
-            
-            const rawText = await response.text();
-            
-            const parseSuccess = processRawCSVText(rawText);
-            if (!parseSuccess || records.length === 0) {
-                throw new Error("File formatting parsing error.");
-            }
-            
-            statusDiv.innerText = `✅ Cloud synced successfully! (${records.length} records ready)`;
-            statusDiv.className = "status-msg status-success";
-        } catch (err) {
-            console.error(err);
-            if (records.length > 0) {
-                statusDiv.innerText = `⚠️ Cloud mismatch/offline. Using cached storage. (${records.length} records active)`;
-                statusDiv.className = "status-msg";
-                statusDiv.style.color = "#d97706";
-            } else {
-                statusDiv.innerText = "❌ Connection failed. Check file formatting or GitHub path.";
-                statusDiv.className = "status-msg";
-                statusDiv.style.color = "#dc2626";
-            }
-        }
-    }
+    // ==========================================
+    // PLACE YOUR 380 RECORDS HERE DIRECTLY
+    // Format: { name: "Full Name", pin: PIN_NUMBER, admin: "Y" or "N" }
+    // ==========================================
+    const records = [
+        { name: "Adriaan (visitor) Garrod", pin: 272, admin: "Y" },
+        { name: "Adriaan (Visitor) Snyders", pin: 666, admin: "N" },
+        { name: "Alan Marshall", pin: 86, admin: "N" },
+        // ... You can copy and paste your remaining 377 rows right here following this exact structure!
+    ];
 
     function verifyUserPIN() {
         const pinInput = parseInt(document.getElementById('login-pin').value);
         if (isNaN(pinInput)) {
             alert("Please enter a numeric PIN code.");
-            return;
-        }
-
-        if (records.length === 0) {
-            alert("App database empty. The cloud synchronization engine hasn't populated data yet.");
             return;
         }
 
@@ -171,71 +138,18 @@
             return;
         }
 
-        if (String(foundUser.admin).trim().toUpperCase() !== 'Y') {
-            alert("Access Denied: You do not have administrator clearance permissions.");
-            return;
-        }
-
-        document.getElementById('current-user-badge').innerText = `Admin: ${foundUser.name}`;
+        // Grant access regardless of flag, but flag assigns display badges
+        document.getElementById('current-user-badge').innerText = `User: ${foundUser.name}`;
         document.getElementById('login-screen').style.display = "none";
         document.getElementById('app-screen').style.display = "block";
         document.getElementById('login-pin').value = ""; 
         renderList();
     }
 
-    // High-Stability Positional Parser (Ignores literal headers, reads Column 1, 2, 3)
-    function processRawCSVText(text) {
-        if (!text || !text.trim()) return false;
-        
-        const lines = text.split(/[\r\n]+/);
-        let parsedRecords = [];
-
-        lines.forEach((rowText, index) => {
-            if (!rowText.trim()) return;
-
-            // Split by tabs (\t), semicolons (;), or commas (,) dynamically
-            let delimiter = ",";
-            if (rowText.includes("\t")) delimiter = "\t";
-            else if (rowText.includes(";")) delimiter = ";";
-
-            let cells = rowText.split(delimiter).map(cell => 
-                cell.replace(/^["']|["']$/g, '').trim()
-            );
-
-            if (cells.length >= 2) {
-                const cellName = cells[0];
-                const cellPinRaw = cells[1];
-                const cellAdmin = cells[2] ? cells[2].trim().toUpperCase() : "N";
-
-                // Pure positional check: Skip row 1 if it explicitly looks like text labels
-                if (index === 0 && (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ")) return;
-
-                if (cellName !== "") {
-                    const targetPin = parseInt(cellPinRaw);
-                    parsedRecords.push({
-                        name: cellName,
-                        pin: isNaN(targetPin) ? 0 : targetPin,
-                        admin: cellAdmin
-                    });
-                }
-            }
-        });
-
-        if (parsedRecords.length > 0) {
-            records = parsedRecords;
-            saveToStorage();
-            return true;
-        }
-        return false;
-    }
-
     function lockAppOut() {
         document.getElementById('app-screen').style.display = "none";
         document.getElementById('login-screen').style.display = "block";
-        fetchCloudDatabase(); 
     }
-
-    function saveToStorage() { localStorage.setItem('mosselkrakerSecureViewDB', JSON.stringify(records)); }
 
     function toggleList() {
         const container = document.getElementById('list-container');
@@ -281,7 +195,8 @@
         });
     }
 
-    fetchCloudDatabase();
+    // Force initialization counter view instantly on start
+    document.getElementById('record-count').innerText = records.length;
 </script>
 </body>
 </html>
