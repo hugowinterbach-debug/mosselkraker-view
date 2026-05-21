@@ -116,10 +116,12 @@
 </div>
 
 <script>
-    // Standalone Direct Link Configuration
-    const CLOUD_CSV_URL = "https://githubusercontent.com";
+    // Split URL configuration to bypass GitHub text-saving limits
+    const CLOUD_BASE = "https://githubusercontent.com";
+    const CLOUD_CSV_URL = CLOUD_BASE + "hugowinterbach-debug/mosselkraker-view/main/mosselkraker_master_list.csv";
 
     let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
+
     let isCollapsed = false;
 
 
