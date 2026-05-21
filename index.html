@@ -67,7 +67,11 @@
         #setup-zone { display: block; border-top: 1px dashed var(--border); padding-top: 15px; margin-top: 15px; }
         #app-screen { display: none; }
         #admin-tools-card { display: none; }
+        
+        /* Direct setup input panel styling tweaks */
         #setup-inputs-wrapper { display: none; margin-top: 10px; background: #f1f5f9; padding: 12px; border-radius: 6px; }
+        #file-upload-block { display: none; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+        .feedback-text { font-size: 12px; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -87,16 +91,22 @@
             </div>
         </div>
 
-        <!-- On-Screen Direct Password Setup Mode -->
+        <!-- Master Password Bootstrap Setup Mode (Becomes invisible if records exist) -->
         <div id="setup-zone">
             <p id="setup-instructions" style="font-size:12px; color:#94a3b8; margin-bottom:5px; text-align:center;">First-time device provisioning or database update?</p>
             <button class="btn" id="btn-toggle-setup" style="background:#e2e8f0; font-size:12px; width:100%;" onclick="toggleSetupInputs()">⚙️ Admin Database Initialization</button>
             
-            <!-- Hidden inputs revealed cleanly on click without using popup prompts -->
             <div id="setup-inputs-wrapper">
-                <input type="password" id="setup-password" placeholder="Enter Setup Password" style="width:100%; box-sizing:border-box; margin-bottom:10px;">
-                <label style="display:block; text-align:left; font-size:12px; font-weight:500; margin-bottom:5px;">Select Master Sheet (.csv):</label>
-                <input type="file" id="bootstrap-file-input" accept=".csv, .txt" onchange="bootstrapDeviceWithFile()" style="width:100%; font-size:12px;">
+                <div style="display:flex; gap:5px;">
+                    <input type="password" id="setup-password" placeholder="Enter Setup Password" style="width:100%;" oninput="checkSetupPasswordLive()">
+                </div>
+                <div id="password-feedback" class="feedback-text" style="color:var(--danger); text-align:left;">❌ Password Required</div>
+                
+                <!-- Strictly Hidden File Selection Section (Revealed ONLY when password matches) -->
+                <div id="file-upload-block">
+                    <label style="display:block; text-align:left; font-size:12px; font-weight:500; margin-bottom:5px; color:#0f172a;">Select Master Sheet (.csv):</label>
+                    <input type="file" id="bootstrap-file-input" accept=".csv, .txt" onchange="bootstrapDeviceWithFile()" style="width:100%; font-size:12px;">
+                </div>
             </div>
         </div>
     </div>
@@ -147,16 +157,18 @@
     let isCollapsed = false;
     const DEFAULT_MASTER_PASSWORD = "Mossel2026";
 
+    // 3. FIXED INTERFACE VISIBILITY LAYER
     function evaluateInterfaceState() {
         const pinWrapper = document.getElementById('login-box-wrapper');
-        const setupInstructions = document.getElementById('setup-instructions');
+        const setupZone = document.getElementById('setup-zone');
         
         if (records.length === 0) {
             pinWrapper.style.display = "none";
-            setupInstructions.innerText = "🚨 Device registry is empty. Device initialization required before standard use.";
+            setupZone.style.display = "block"; // Only display initialization panel when device is totally empty
+            document.getElementById('setup-instructions').innerText = "🚨 Device registry is empty. Device initialization required before standard use.";
         } else {
             pinWrapper.style.display = "block";
-            setupInstructions.innerText = "First-time device provisioning or database update?";
+            setupZone.style.display = "none";  // ENTIRELY INVISIBLE if records exist inside device memory
         }
         document.getElementById('record-count').innerText = records.length;
     }
@@ -167,10 +179,45 @@
         if (wrapper.style.display === "block") {
             wrapper.style.display = "none";
             btn.innerText = "⚙️ Admin Database Initialization";
+            resetSetupFields();
         } else {
             wrapper.style.display = "block";
             btn.innerText = "✖ Cancel Initialization";
             document.getElementById('setup-password').focus();
+            checkSetupPasswordLive();
+        }
+    }
+
+    function resetSetupFields() {
+        document.getElementById('setup-password').value = "";
+        document.getElementById('bootstrap-file-input').value = "";
+        document.getElementById('file-upload-block').style.display = "none";
+        document.getElementById('password-feedback').innerText = "❌ Password Required";
+        document.getElementById('password-feedback').style.color = "var(--danger)";
+    }
+
+    // 1 & 2. FIXED PASSWORD KEYPRESS LISTENER & DYNAMIC INPUT UNLOCKING
+    function checkSetupPasswordLive() {
+        const currentSavedPassword = localStorage.getItem('mosselkrakerMasterPwd') || DEFAULT_MASTER_PASSWORD;
+        const inputPassword = document.getElementById('setup-password').value.trim();
+        const feedback = document.getElementById('password-feedback');
+        const fileBlock = document.getElementById('file-upload-block');
+
+        if (inputPassword === "") {
+            feedback.innerText = "❌ Password Required";
+            feedback.style.color = "var(--danger)";
+            fileBlock.style.display = "none";
+            return;
+        }
+
+        if (inputPassword === currentSavedPassword) {
+            feedback.innerText = "✅ Password Accepted! Upload container opened below.";
+            feedback.style.color = "var(--success)";
+            fileBlock.style.display = "block"; // Only displays file picker if match is identical
+        } else {
+            feedback.innerText = "❌ Incorrect Password";
+            feedback.style.color = "var(--danger)";
+            fileBlock.style.display = "none";
         }
     }
 
@@ -202,19 +249,9 @@
         renderList();
     }
 
-    // Direct On-Screen File Initialization Processor
     function bootstrapDeviceWithFile() {
-        const currentSavedPassword = localStorage.getItem('mosselkrakerMasterPwd') || DEFAULT_MASTER_PASSWORD;
-        const inputPassword = document.getElementById('setup-password').value.trim();
         const fileInput = document.getElementById('bootstrap-file-input');
         const files = fileInput.files;
-
-        if (inputPassword !== currentSavedPassword) {
-            alert("Access Denied: Incorrect Master Setup Password.");
-            fileInput.value = ""; // clear selector
-            return;
-        }
-
         if (!files || files.length === 0) return;
 
         const reader = new FileReader();
@@ -222,7 +259,7 @@
             const parseSuccess = processRawCSVText(evt.target.result);
             if (parseSuccess && records.length > 0) {
                 alert(`Initialization Complete! ${records.length} records loaded securely.`);
-                document.getElementById('setup-password').value = "";
+                resetSetupFields();
                 document.getElementById('setup-inputs-wrapper').style.display = "none";
                 lockAppOut();
             } else {
@@ -232,7 +269,7 @@
                 evaluateInterfaceState();
             }
         };
-        reader.readAsText(files[0]);
+        reader.readAsText(files);
     }
 
     function changeMasterSetupPassword() {
@@ -270,7 +307,7 @@
                 alert("Update failed: Unrecognized data structures mapping alignment.");
             }
         };
-        reader.readAsText(file[0]);
+        reader.readAsText(file);
         fileInput.value = ""; 
     }
 
@@ -380,3 +417,4 @@
 </script>
 </body>
 </html>
+
