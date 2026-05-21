@@ -7,6 +7,8 @@
     <style>
         :root {
             --primary: #2563eb;
+            --danger: #dc2626;
+            --success: #16a34a;
             --border: #e5e7eb;
         }
         body {
@@ -25,6 +27,17 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             margin-bottom: 15px;
         }
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
         input, select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; flex: 1; font-size: 14px; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         @media(max-width: 480px) { .controls { grid-template-columns: 1fr; } }
@@ -49,99 +62,184 @@
             background: white;
         }
         .list-item:last-child { border-bottom: none; }
+        
+        #login-screen { display: block; max-width: 400px; margin: 50px auto; }
+        #app-screen { display: none; }
+        .status-msg { text-align: center; font-size: 12px; margin-top: 10px; font-weight: bold; }
+        .status-success { color: var(--success); }
+        .status-loading { color: var(--primary); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>📋 Mosselkraker View</h2>
 
-    <!-- File Upload (Overwrites existing local data when a new file is dropped in) -->
-    <div class="card">
-        <div style="margin-bottom: 5px;">
-            <label style="font-weight:500; font-size:14px;">Upload Master Sheet (Excel CSV / Text):</label>
-            <input type="file" id="excel-file" accept=".csv, .txt" onchange="uploadCSV()" style="margin-top:5px; width:100%;">
+    <!-- 1. SECURE LOCKSCREEN GATEWAY -->
+    <div id="login-screen" class="card">
+        <h3 style="text-align:center; margin-top:0;">🔐 Access Verification</h3>
+        <p style="font-size:13px; color:#64748b; text-align:center;">Enter your assigned PIN. The app updates and verifies your identity via the live cloud database automatically.</p>
+        
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <input type="password" id="login-pin" placeholder="Enter PIN Number" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUserPIN()">
+            <button class="btn btn-primary" onclick="verifyUserPIN()">Unlock Application</button>
         </div>
+
+        <div id="cloud-status" class="status-msg status-loading">🔄 Fetching master database from GitHub...</div>
     </div>
 
-    <!-- Controls -->
-    <div class="controls">
-        <input type="text" id="search-box" placeholder="🔍 Search by name..." oninput="renderList()">
-        <select id="sort-option" onchange="renderList()">
-            <option value="name-az">Sort: Name (A-Z)</option>
-            <option value="pin-asc">Sort: PIN (Ascending)</option>
-        </select>
-    </div>
-
-    <!-- Output List -->
-    <div class="card" style="padding:0; overflow:hidden;">
-        <div class="collapsible-header" onclick="toggleList()">
-            <span>Lookup Records (<span id="record-count">0</span>)</span>
-            <span id="collapse-arrow">▼</span>
+    <!-- 2. FULL APPLICATION ACCESS VIEW -->
+    <div id="app-screen">
+        <h2>📋 Mosselkraker View</h2>
+        <div style="text-align:right; margin-bottom:10px;">
+            <span style="font-size:12px; background:#e2e8f0; padding:4px 8px; border-radius:12px;" id="current-user-badge">User: Admin</span>
+            <button class="btn" style="background:#cbd5e1; padding:2px 8px; font-size:11px; margin-left:5px;" onclick="lockAppOut()">Logout</button>
         </div>
-        <div id="list-container" class="collapsible-content"></div>
+
+        <!-- Search & Sort Controls -->
+        <div class="controls">
+            <input type="text" id="search-box" placeholder="🔍 Search by name..." oninput="renderList()">
+            <select id="sort-option" onchange="renderList()">
+                <option value="name-az">Sort: Name (A-Z)</option>
+                <option value="pin-asc">Sort: PIN (Ascending)</option>
+            </select>
+        </div>
+
+        <!-- Collapsible Results Grid -->
+        <div class="card" style="padding:0; overflow:hidden;">
+            <div class="collapsible-header" onclick="toggleList()">
+                <span>Lookup Records (<span id="record-count">0</span>)</span>
+                <span id="collapse-arrow">▼</span>
+            </div>
+            <div id="list-container" class="collapsible-content"></div>
+        </div>
     </div>
 </div>
 
 <script>
-    // Loads separate database pointer name specifically for the viewer variant
-    let records = JSON.parse(localStorage.getItem('lookupRecordsViewOnly')) || [];
+    // Pointing directly to the mosselkraker-view repository
+    const GITHUB_USERNAME = "hugowinterbach-debug";
+    const REPOSITORY_NAME = "mosselkraker-view";
+    const FILE_NAME = "mosselkraker_master_list.csv";
+
+    const CLOUD_CSV_URL = `https://githubusercontent.com{GITHUB_USERNAME}/${REPOSITORY_NAME}/main/${FILE_NAME}`;
+
+    let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
 
-    function uploadCSV() {
-        const fileInput = document.getElementById('excel-file');
-        const files = fileInput.files;
-        if (!files || files.length === 0) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const text = e.target.result;
-                let delimiter = ",";
-                const lines = text.split(/[\r\n]+/);
-                if (lines.length > 0 && lines.includes(";")) {
-                    delimiter = ";";
-                }
-                
-                // Clear active arrays completely to prevent data stacking on clean load
-                let newRecords = [];
-
-                lines.forEach((rowText) => {
-                    if (!rowText.trim()) return;
-
-                    let cells = rowText.split(delimiter).map(cell => 
-                        cell.replace(/^["']|["']$/g, '').trim()
-                    );
-
-                    if (cells.length >= 2) {
-                        const cellName = cells[0];
-                        const cellPinRaw = cells[1];
-
-                        if (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ") return;
-
-                        if (cellName !== "") {
-                            const targetPin = parseInt(cellPinRaw);
-                            newRecords.push({
-                                name: cellName,
-                                pin: isNaN(targetPin) ? 0 : targetPin
-                            });
-                        }
-                    }
-                });
-
-                records = newRecords;
-                saveToStorage();
-                renderList();
-                alert(`Successfully loaded ${records.length} records into viewer!`);
-            } catch (err) {
-                alert("Error parsing file structure: " + err.message);
+    async function fetchCloudDatabase() {
+        const statusDiv = document.getElementById('cloud-status');
+        try {
+            const response = await fetch(CLOUD_CSV_URL + '?nocache=' + new Date().getTime());
+            if (!response.ok) throw new Error("Could not find file on GitHub path.");
+            
+            const rawText = await response.text();
+            
+            const parseSuccess = processRawCSVText(rawText);
+            if (!parseSuccess || records.length === 0) {
+                throw new Error("File formatting parsing error.");
             }
-            fileInput.value = ""; 
-        };
-        reader.readAsText(files[0]);
+            
+            statusDiv.innerText = `✅ Cloud synced successfully! (${records.length} records ready)`;
+            statusDiv.className = "status-msg status-success";
+        } catch (err) {
+            console.error(err);
+            if (records.length > 0) {
+                statusDiv.innerText = `⚠️ Cloud mismatch/offline. Using cached storage. (${records.length} records active)`;
+                statusDiv.className = "status-msg";
+                statusDiv.style.color = "#d97706";
+            } else {
+                statusDiv.innerText = "❌ Connection failed. Check file formatting or GitHub path.";
+                statusDiv.className = "status-msg";
+                statusDiv.style.color = "#dc2626";
+            }
+        }
     }
 
-    function saveToStorage() { localStorage.setItem('lookupRecordsViewOnly', JSON.stringify(records)); }
+    function verifyUserPIN() {
+        const pinInput = parseInt(document.getElementById('login-pin').value);
+        if (isNaN(pinInput)) {
+            alert("Please enter a numeric PIN code.");
+            return;
+        }
+
+        if (records.length === 0) {
+            alert("App database empty. The cloud synchronization engine hasn't populated data yet.");
+            return;
+        }
+
+        const foundUser = records.find(item => parseInt(item.pin) === pinInput);
+
+        if (!foundUser) {
+            alert("Access Denied: Invalid PIN number.");
+            return;
+        }
+
+        if (String(foundUser.admin).trim().toUpperCase() !== 'Y') {
+            alert("Access Denied: You do not have administrator clearance permissions.");
+            return;
+        }
+
+        document.getElementById('current-user-badge').innerText = `Admin: ${foundUser.name}`;
+        document.getElementById('login-screen').style.display = "none";
+        document.getElementById('app-screen').style.display = "block";
+        document.getElementById('login-pin').value = ""; 
+        renderList();
+    }
+
+    function processRawCSVText(text) {
+        if (!text || !text.trim()) return false;
+        
+        let delimiter = ",";
+        const lines = text.split(/[\r\n]+/);
+        
+        if (lines.length > 0) {
+            const firstLine = lines[0];
+            if (firstLine.includes("\t")) delimiter = "\t";
+            else if (firstLine.includes(";")) delimiter = ";";
+        }
+
+        let parsedRecords = [];
+
+        lines.forEach((rowText) => {
+            if (!rowText.trim()) return;
+
+            let cells = rowText.split(delimiter).map(cell => 
+                cell.replace(/^["']|["']$/g, '').trim()
+            );
+
+            if (cells.length >= 2) {
+                const cellName = cells[0];
+                const cellPinRaw = cells[1];
+                const cellAdmin = cells[2] ? cells[2].trim().toUpperCase() : "N";
+
+                if (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ") return;
+
+                if (cellName !== "") {
+                    const targetPin = parseInt(cellPinRaw);
+                    parsedRecords.push({
+                        name: cellName,
+                        pin: isNaN(targetPin) ? 0 : targetPin,
+                        admin: cellAdmin
+                    });
+                }
+            }
+        });
+
+        if (parsedRecords.length > 0) {
+            records = parsedRecords;
+            saveToStorage();
+            return true;
+        }
+        return false;
+    }
+
+    function lockAppOut() {
+        document.getElementById('app-screen').style.display = "none";
+        document.getElementById('login-screen').style.display = "block";
+        fetchCloudDatabase(); 
+    }
+
+    function saveToStorage() { localStorage.setItem('mosselkrakerSecureViewDB', JSON.stringify(records)); }
 
     function toggleList() {
         const container = document.getElementById('list-container');
@@ -177,15 +275,18 @@
         processedList.forEach(item => {
             const div = document.createElement('div');
             div.className = 'list-item';
+            const adminTag = item.admin === 'Y' ? ' <span style="font-size:10px; color:var(--primary); font-weight:bold;">[Admin]</span>' : '';
             div.innerHTML = `
                 <div>
-                    <strong>${item.name}</strong> <span style="color:#64748b; margin-left:8px;">(PIN: ${item.pin})</span>
+                    <strong>${item.name}</strong>${adminTag} <span style="color:#64748b; margin-left:8px;">(PIN: ${item.pin})</span>
                 </div>
             `;
             listContainer.appendChild(div);
         });
     }
-    renderList();
+
+    fetchCloudDatabase();
 </script>
 </body>
 </html>
+
