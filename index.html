@@ -36,6 +36,7 @@
             font-size: 14px;
         }
         .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
         input, select { padding: 8px; border: 1px solid var(--border); border-radius: 6px; flex: 1; font-size: 14px; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         @media(max-width: 480px) { .controls { grid-template-columns: 1fr; } }
@@ -63,26 +64,30 @@
         
         #login-screen { display: block; max-width: 400px; margin: 50px auto; }
         #app-screen { display: none; }
-        .status-msg { text-align: center; font-size: 12px; margin-top: 10px; font-weight: bold; color: var(--success); }
     </style>
 </head>
 <body>
 
 <div class="container">
 
-    <!-- 1. SECURE LOCKSCREEN GATEWAY -->
+    <!-- 1. SECURE GATEKEEPER LOCKSCREEN -->
     <div id="login-screen" class="card">
         <h3 style="text-align:center; margin-top:0;">🔐 Access Verification</h3>
-        <p style="font-size:13px; color:#64748b; text-align:center;">Enter your assigned PIN to open the database registry records.</p>
+        <p style="font-size:13px; color:#64748b; text-align:center;">Please enter your assigned PIN number below to unlock the Mosselkraker dataset view tool.</p>
         
         <div style="display:flex; flex-direction:column; gap:10px;">
             <input type="password" id="login-pin" placeholder="Enter PIN Number" inputmode="numeric" onkeydown="if(event.key==='Enter') verifyUserPIN()">
             <button class="btn btn-primary" onclick="verifyUserPIN()">Unlock Application</button>
         </div>
-        <div class="status-msg">📦 Standalone Offline Registry Engine Active</div>
+
+        <!-- Authorized Bootstrap Mechanism for Device Provisioning -->
+        <div id="setup-zone" style="margin-top:20px; border-top:1px dashed var(--border); padding-top:15px; text-align:center;">
+            <p style="font-size:12px; color:#94a3b8; margin-bottom:5px;">First-time device provisioning or database update?</p>
+            <button class="btn" style="background:#e2e8f0; font-size:12px;" onclick="bootstrapDeviceWithFile()">⚙️ Admin Database Initialization</button>
+        </div>
     </div>
 
-    <!-- 2. FULL APPLICATION ACCESS VIEW -->
+    <!-- 2. FULL VIEW-ONLY RUNTIME ENVIRONMENT -->
     <div id="app-screen">
         <h2>📋 Mosselkraker View</h2>
         <div style="text-align:right; margin-bottom:10px;">
@@ -90,7 +95,16 @@
             <button class="btn" style="background:#cbd5e1; padding:2px 8px; font-size:11px; margin-left:5px;" onclick="lockAppOut()">Logout</button>
         </div>
 
-        <!-- Search & Sort Controls -->
+        <!-- Dataset Control Hub (Can only be accessed *after* logging in) -->
+        <div class="card">
+            <div style="margin-bottom: 10px;">
+                <label style="font-weight:500; font-size:14px;">Update Core Master Sheet (Excel CSV / Text):</label>
+                <input type="file" id="excel-file" accept=".csv, .txt" onchange="uploadCSV()" style="margin-top:5px; width:100%;">
+            </div>
+            <button class="btn btn-danger" onclick="clearAll()" style="width: 100%;">🗑️ Clear All Registry Entries</button>
+        </div>
+
+        <!-- Search / Sort Tools -->
         <div class="controls">
             <input type="text" id="search-box" placeholder="🔍 Search by name..." oninput="renderList()">
             <select id="sort-option" onchange="renderList()">
@@ -99,7 +113,7 @@
             </select>
         </div>
 
-        <!-- Collapsible Results Grid -->
+        <!-- Collapsible List Result Mapping Grid -->
         <div class="card" style="padding:0; overflow:hidden;">
             <div class="collapsible-header" onclick="toggleList()">
                 <span>Lookup Records (<span id="record-count">0</span>)</span>
@@ -111,19 +125,10 @@
 </div>
 
 <script>
+    let records = JSON.parse(localStorage.getItem('mosselkrakerSecureViewDB')) || [];
     let isCollapsed = false;
 
-    // ==========================================
-    // PLACE YOUR 380 RECORDS HERE DIRECTLY
-    // Format: { name: "Full Name", pin: PIN_NUMBER, admin: "Y" or "N" }
-    // ==========================================
-    const records = [
-        { name: "Adriaan (visitor) Garrod", pin: 272, admin: "Y" },
-        { name: "Adriaan (Visitor) Snyders", pin: 666, admin: "N" },
-        { name: "Alan Marshall", pin: 86, admin: "N" },
-        // ... You can copy and paste your remaining 377 rows right here following this exact structure!
-    ];
-
+    // Strict Dynamic Runtime Gatekeeper Validation
     function verifyUserPIN() {
         const pinInput = parseInt(document.getElementById('login-pin').value);
         if (isNaN(pinInput)) {
@@ -131,14 +136,19 @@
             return;
         }
 
-        const foundUser = records.find(item => parseInt(item.pin) === pinInput);
-
-        if (!foundUser) {
-            alert("Access Denied: Invalid PIN number.");
+        if (records.length === 0) {
+            alert("This device is completely blank. An authorized administrator must click the 'Admin Database Initialization' tool below to load the file first.");
             return;
         }
 
-        // Grant access regardless of flag, but flag assigns display badges
+        const foundUser = records.find(item => parseInt(item.pin) === pinInput);
+
+        if (!foundUser) {
+            alert("Access Denied: Invalid PIN code.");
+            return;
+        }
+
+        // Grant access immediately
         document.getElementById('current-user-badge').innerText = `User: ${foundUser.name}`;
         document.getElementById('login-screen').style.display = "none";
         document.getElementById('app-screen').style.display = "block";
@@ -146,10 +156,126 @@
         renderList();
     }
 
+    // Provisioning Engine (Protects device initialization via strict Admin verification step)
+    function bootstrapDeviceWithFile() {
+        // Step 1: Prompt the loader for an Admin code upfront to prove credentials
+        const verifyAdminPIN = parseInt(prompt("Security Challenge:\nPlease enter an authorized Administrator PIN code to upload files to this device:"));
+        
+        if (isNaN(verifyAdminPIN)) return;
+
+        // Step 2: Trigger standard file upload prompt dialog stream safely
+        const fileSelector = document.createElement('input');
+        fileSelector.type = 'file';
+        fileSelector.accept = '.csv, .txt';
+        
+        fileSelector.onchange = function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const parseSuccess = processRawCSVText(evt.target.result);
+                
+                if (!parseSuccess || records.length === 0) {
+                    alert("Initialization aborted: Could not parse text columns cleanly. Ensure your file format matches.");
+                    records = [];
+                    localStorage.removeItem('mosselkrakerSecureViewDB');
+                    return;
+                }
+
+                // Verify if the typed PIN actually has Admin = 'Y' parameters mapped in the uploaded grid
+                const targetAdminUser = records.find(item => parseInt(item.pin) === verifyAdminPIN);
+                if (!targetAdminUser || String(targetAdminUser.admin).trim().toUpperCase() !== 'Y') {
+                    alert("Security Violation: The PIN code entered does not possess Administrator clearance flags within this file. Registry database deleted.");
+                    records = [];
+                    localStorage.removeItem('mosselkrakerSecureViewDB');
+                    return;
+                }
+
+                alert(`Device provisioning complete! Successfully mapped ${records.length} records into secure memory. You may now unlock the app using your PIN.`);
+            };
+            reader.readAsText(file);
+        };
+        fileSelector.click();
+    }
+
+    function clearAll() {
+        if (confirm("Wipe all active entries? This will completely reset this machine profile view and log you out.")) {
+            records = [];
+            saveToStorage();
+            lockAppOut();
+        }
+    }
+
+    function uploadCSV() {
+        const fileInput = document.getElementById('excel-file');
+        const files = fileInput.files;
+        if (!files || files.length === 0) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const parseSuccess = processRawCSVText(e.target.result);
+            if (parseSuccess) {
+                alert(`Database updated cleanly! ${records.length} total entries active.`);
+                renderList();
+            } else {
+                alert("Update failed: Unrecognized data format column maps.");
+            }
+        };
+        reader.readAsText(files[0]);
+        fileInput.value = ""; 
+    }
+
+    // High-Stability Positional parsing framework supporting comma, semi-colon, and tab-spaces
+    function processRawCSVText(text) {
+        if (!text || !text.trim()) return false;
+        
+        const lines = text.split(/[\r\n]+/);
+        let parsedRecords = [];
+
+        lines.forEach((rowText, index) => {
+            if (!rowText.trim()) return;
+
+            let delimiter = ",";
+            if (rowText.includes("\t")) delimiter = "\t";
+            else if (rowText.includes(";")) delimiter = ";";
+
+            let cells = rowText.split(delimiter).map(cell => 
+                cell.replace(/^["']|["']$/g, '').trim()
+            );
+
+            if (cells.length >= 2) {
+                const cellName = cells[0];
+                const cellPinRaw = cells[1];
+                const cellAdmin = cells[2] ? cells[2].trim().toUpperCase() : "N";
+
+                if (index === 0 && (cellName.toUpperCase() === "NAME" || cellName.toUpperCase() === "NAME ")) return;
+
+                if (cellName !== "") {
+                    const targetPin = parseInt(cellPinRaw);
+                    parsedRecords.push({
+                        name: cellName,
+                        pin: isNaN(targetPin) ? 0 : targetPin,
+                        admin: cellAdmin
+                    });
+                }
+            }
+        });
+
+        if (parsedRecords.length > 0) {
+            records = parsedRecords;
+            saveToStorage();
+            return true;
+        }
+        return false;
+    }
+
     function lockAppOut() {
         document.getElementById('app-screen').style.display = "none";
         document.getElementById('login-screen').style.display = "block";
     }
+
+    function saveToStorage() { localStorage.setItem('mosselkrakerSecureViewDB', JSON.stringify(records)); }
 
     function toggleList() {
         const container = document.getElementById('list-container');
@@ -195,8 +321,8 @@
         });
     }
 
-    // Force initialization counter view instantly on start
     document.getElementById('record-count').innerText = records.length;
 </script>
 </body>
 </html>
+
